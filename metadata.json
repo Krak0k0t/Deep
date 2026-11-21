@@ -1,0 +1,6 @@
+{
+  "name": "Глубоководная рыбка",
+  "description": "Кинематографичная 3D-стелс-история о маме-рыбке и её потерянной икринке: 10 глав спуска в бездну и подъёма к свету.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
