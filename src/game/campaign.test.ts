@@ -9,15 +9,41 @@ import {
   getPlayerSpeedMultiplier,
   emitCall,
   collectPearl,
+  collectLoreRelic,
   purchaseGlowSkin,
+  purchaseHideoutUpgrade,
+  completeBorisMugQuest,
+  completeCrabDebrisQuest,
+  completeWhaleContainerQuest,
+  completeQueenEscortQuest,
+  completeWhaleRescueQuest,
+  completeBorisShortcutQuest,
+  completeKeshaAlertQuest,
+  completeHatchlingQuest,
+  recordChapterHit,
+  recordPredatorSpot,
+  calculateChapterRank,
+  completeChapterMastery,
   registerStyleDodge,
   triggerEggPickupAscent,
   buildBalanceTelemetry,
 } from './campaign';
+import {
+  CHAPTER_5_THERMAL_VENTS,
+  CHAPTER_7_UPDRAFT_ZONES,
+  sampleThermalVentHazard,
+  sampleUpdraftCurrent,
+} from './physics';
 
-test('campaign defines all 10 chapters across Descent (1-6) and Ascent (7-10)', () => {
+test('campaign defines and implements all 10 chapters across Descent (1-6) and Ascent (7-10)', () => {
   assert.equal(Object.keys(CHAPTERS).length, 10);
-  assert.equal(CHAPTERS[1].phase, 'DESCENT');
+  for (let id = 1; id <= 10; id++) {
+    assert.equal(CHAPTERS[id as 1].implemented, true, `Chapter ${id} must be implemented`);
+  }
+  assert.equal(CHAPTERS[2].title, 'Поющий кит');
+  assert.equal(CHAPTERS[3].title, 'Мёртвый шёпот');
+  assert.equal(CHAPTERS[4].title, 'Кладбище левиафанов');
+  assert.equal(CHAPTERS[5].title, 'Чёрные курильщики');
   assert.equal(CHAPTERS[6].phase, 'DESCENT');
   assert.equal(CHAPTERS[7].phase, 'ASCENT');
   assert.equal(CHAPTERS[10].phase, 'ASCENT');
@@ -97,3 +123,118 @@ test('critic crabs style dodge combo awards 1 pearl on 3rd dodge and builds tele
   assert.equal(telemetry.totalStyleDodges, 3);
   assert.equal(telemetry.elapsedSec, 42.3);
 });
+
+test('hideout upgrades deduct pearls once and Chapters 2-10 quests track NPCs & rewards', () => {
+  let state = createCampaignState(2);
+  for (let i = 1; i <= 6; i++) {
+    state = collectPearl(state, `ch2_p_${i}`);
+  }
+  const failRes = purchaseHideoutUpgrade({ ...state, pearls: 2 }, 'silent_fins');
+  assert.equal(failRes.ok, false);
+
+  const okRes = purchaseHideoutUpgrade(state, 'silent_fins');
+  assert.equal(okRes.ok, true);
+  assert.equal(okRes.state.pearls, 0);
+  assert.ok(okRes.state.upgrades.includes('silent_fins'));
+
+  // Re-purchasing owned upgrade is idempotent
+  const repeatRes = purchaseHideoutUpgrade(okRes.state, 'silent_fins');
+  assert.equal(repeatRes.ok, true);
+  assert.equal(repeatRes.state.pearls, 0);
+
+  const questDone = completeBorisMugQuest(repeatRes.state);
+  assert.equal(questDone.quests.borisMug, true);
+  assert.equal(questDone.hasDashMutation, true);
+  assert.ok(questDone.npcsMet.includes('boris'));
+
+  const ch3State = completeCrabDebrisQuest(createCampaignState(3));
+  assert.equal(ch3State.quests.crabDebris, true);
+  assert.ok(ch3State.npcsMet.includes('hermit_crabs'));
+
+  const ch4State = completeWhaleContainerQuest(createCampaignState(4));
+  assert.equal(ch4State.quests.whaleContainer, true);
+  assert.ok(ch4State.npcsMet.includes('critic_crabs'));
+
+  const ch5State = completeQueenEscortQuest(createCampaignState(5));
+  assert.equal(ch5State.quests.queenEscort, true);
+  assert.ok(ch5State.npcsMet.includes('queen_angler'));
+
+  const ch7State = completeWhaleRescueQuest(createCampaignState(7));
+  assert.equal(ch7State.quests.whaleRescued, true);
+  assert.ok(ch7State.npcsMet.includes('young_whale'));
+
+  const ch8State = completeBorisShortcutQuest(createCampaignState(8));
+  assert.equal(ch8State.quests.borisShortcut, true);
+  assert.ok(ch8State.npcsMet.includes('boris'));
+
+  const ch9State = completeKeshaAlertQuest(createCampaignState(9));
+  assert.equal(ch9State.quests.keshaAlert, true);
+  assert.ok(ch9State.npcsMet.includes('kesha'));
+
+  const ch10State = completeHatchlingQuest(createCampaignState(10));
+  assert.equal(ch10State.quests.hatchlingBorn, true);
+});
+
+test('Chapters 5 & 7-10 thermal vent hazards and updraft currents respond accurately', () => {
+  const vent = CHAPTER_5_THERMAL_VENTS[0];
+  const insidePos = { x: vent.x, y: -2, z: vent.z };
+
+  // Warning phase (t in [3.6, 4.9))
+  const warn = sampleThermalVentHazard(insidePos, CHAPTER_5_THERMAL_VENTS, 4.0, 0);
+  assert.equal(warn.warningVentId, vent.id);
+  assert.equal(warn.eruptingVentId, null);
+  assert.equal(warn.hitPlayer, false);
+
+  // Erupting phase (t >= 4.9)
+  const erupt = sampleThermalVentHazard(insidePos, CHAPTER_5_THERMAL_VENTS, 5.2, 0);
+  assert.equal(erupt.eruptingVentId, vent.id);
+  assert.ok(erupt.pushY > 0);
+  assert.equal(erupt.hitPlayer, true);
+
+  // Updraft zone boost
+  const upd = CHAPTER_7_UPDRAFT_ZONES[0];
+  const updHit = sampleUpdraftCurrent({ x: upd.x, y: 0, z: upd.z }, CHAPTER_7_UPDRAFT_ZONES);
+  assert.equal(updHit.inUpdraft, true);
+  assert.ok(updHit.boostForward > 0);
+  assert.ok(updHit.boostY > 0);
+
+  const updMiss = sampleUpdraftCurrent({ x: 14, y: 0, z: 0 }, CHAPTER_7_UPDRAFT_ZONES);
+  assert.equal(updMiss.inUpdraft, false);
+});
+
+test('lore relic pickup grants 2 pearls once and chapter mastery computes S/A/B ranks with first-time S bonus', () => {
+  let state = createCampaignState(2);
+  const firstPick = collectLoreRelic(state, 'relic_ch2_bell');
+  assert.equal(firstPick.isNew, true);
+  state = firstPick.state;
+  assert.equal(state.pearls, 2);
+  assert.deepEqual(state.collectedRelicIds, ['relic_ch2_bell']);
+
+  // Duplicate relic pickup is idempotent
+  const dupPick = collectLoreRelic(state, 'relic_ch2_bell');
+  assert.equal(dupPick.isNew, false);
+  state = dupPick.state;
+  assert.equal(state.pearls, 2);
+
+  assert.equal(calculateChapterRank(0, 1), 'S');
+  assert.equal(calculateChapterRank(1, 3), 'A');
+  assert.equal(calculateChapterRank(2, 0), 'B');
+
+  const firstS = completeChapterMastery(state);
+  assert.equal(firstS.rank, 'S');
+  assert.equal(firstS.awardedSRankBonus, true);
+  assert.equal(firstS.state.pearls, 4);
+  assert.equal(firstS.state.bestRankByChapter[2], 'S');
+
+  // Re-earning S in the same chapter does not award bonus twice
+  const secondS = completeChapterMastery(firstS.state);
+  assert.equal(secondS.rank, 'S');
+  assert.equal(secondS.awardedSRankBonus, false);
+  assert.equal(secondS.state.pearls, 4);
+
+  const hurt = recordPredatorSpot(recordChapterHit(secondS.state));
+  const lowered = completeChapterMastery(hurt);
+  assert.equal(lowered.rank, 'A');
+  assert.equal(lowered.state.bestRankByChapter[2], 'S');
+});
+

@@ -54,14 +54,47 @@ test('save system persists highest chapter reached, pearls, and quests across se
   assert.equal(loadSaveData(storage), null);
 });
 
-test('chapter 1 transition trigger detects arrival at the abyssal crevice zone', () => {
-  const trigger = CHAPTER_TRANSITIONS[1]!;
+test('chapter transitions and save persistence cover full 10-chapter Descent & Ascent arc', () => {
+  const trigger1 = CHAPTER_TRANSITIONS[1]!;
   assert.equal(
-    isInsideTransitionTrigger({ x: 0, y: -1, z: -60 }, trigger),
+    isInsideTransitionTrigger({ x: 0, y: -1, z: -60 }, trigger1),
     false,
   );
   assert.equal(
-    isInsideTransitionTrigger({ x: 0, y: -1.5, z: -85 }, trigger),
+    isInsideTransitionTrigger({ x: 0, y: -1.5, z: -85 }, trigger1),
     true,
   );
+
+  const trigger4 = CHAPTER_TRANSITIONS[4]!;
+  assert.equal(trigger4.nextChapter, 5);
+  assert.equal(
+    isInsideTransitionTrigger({ x: 0, y: -4, z: -85 }, trigger4),
+    true,
+  );
+
+  const trigger6 = CHAPTER_TRANSITIONS[6]!;
+  assert.equal(trigger6.nextChapter, 7);
+
+  const trigger10 = CHAPTER_TRANSITIONS[10]!;
+  assert.equal(trigger10.nextChapter, null);
+  assert.equal(
+    isInsideTransitionTrigger({ x: 0, y: 1.5, z: -85 }, trigger10),
+    true,
+  );
+
+  const storage = createMemoryStorage();
+  const state10 = createCampaignState(10);
+  state10.quests.whaleContainer = true;
+  state10.quests.queenEscort = true;
+  state10.quests.eggReclaimed = true;
+  state10.quests.hatchlingBorn = true;
+  saveCampaignProgress(state10, 10, storage);
+  const loaded = loadSaveData(storage);
+  assert.equal(loaded?.highestChapter, 10);
+  assert.equal(loaded?.quests.whaleContainer, true);
+  assert.equal(loaded?.quests.eggReclaimed, true);
+  assert.equal(loaded?.quests.hatchlingBorn, true);
+  const restored10 = createCampaignFromSave(loaded!, 10);
+  assert.equal(restored10.chapter, 10);
+  assert.equal(restored10.phase, 'ASCENT');
 });

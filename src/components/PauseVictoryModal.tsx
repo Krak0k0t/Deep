@@ -1,112 +1,202 @@
 import React from 'react';
+import { getLocale, t } from '../game/i18n';
 import { HUDSnapshot } from '../game/UnderwaterEngine';
 
 interface PauseVictoryModalProps {
   hud: HUDSnapshot;
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
   onResume: () => void;
+  onNextChapter: () => void;
+  onOpenControls: () => void;
+  onOpenShop: () => void;
+  onOpenJournal: () => void;
   onRespawn: () => void;
   onRestart: () => void;
   onTitle: () => void;
+  onHoverSound?: () => void;
+  onClickSound?: () => void;
 }
 
 export const PauseVictoryModal: React.FC<PauseVictoryModalProps> = ({
   hud,
+  isFullscreen,
+  onToggleFullscreen,
   onResume,
+  onNextChapter,
+  onOpenControls,
+  onOpenShop,
+  onOpenJournal,
   onRespawn,
   onRestart,
   onTitle,
+  onHoverSound,
+  onClickSound,
 }) => {
   if (hud.screenState !== 'paused' && hud.screenState !== 'gameover') {
     return null;
   }
 
+  const lang = hud.gameSettings.language;
+  const dict = getLocale(lang);
   const isVictory = hud.screenState === 'gameover' && hud.outcome === 'victory';
   const isDefeat = hud.screenState === 'gameover' && hud.outcome === 'defeat';
+  const hasNextChapter = isVictory && hud.chapter >= 1 && hud.chapter < 10;
+
+  const eyebrow = isVictory
+    ? (dict[`ch${hud.chapter}CompleteLabel` as keyof typeof dict] ?? dict.ch1CompleteLabel)
+    : isDefeat
+      ? dict.modalDefeatEyebrow
+      : dict.modalPauseEyebrow;
+
+  const heading = isVictory
+    ? (dict[`modalVictoryTitleCh${hud.chapter}` as keyof typeof dict] ?? dict.modalVictoryTitleCh1)
+    : isDefeat
+      ? t(lang, 'modalDefeatTitle', { chapter: hud.chapterTitle })
+      : hud.chapterTitle;
+
+  const desc = isVictory
+    ? (dict[`modalVictoryDescCh${hud.chapter}` as keyof typeof dict] ?? dict.modalVictoryDescCh1)
+    : isDefeat
+      ? dict.modalDefeatDesc
+      : dict.modalPauseDesc;
 
   return (
     <div
-      className="fixed inset-0 z-30 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(2, 12, 20, 0.72)' }}
+      className="fixed inset-0 z-30 flex items-center justify-center p-3 sm:p-4"
+      style={{ backgroundColor: 'rgba(2, 12, 20, 0.74)' }}
     >
       <div
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-md rounded-md border border-[#26e8d4]/45 p-6 md:p-7 shadow-[0_20px_56px_rgba(0,0,0,0.75)]"
-        style={{ backgroundColor: 'rgba(5, 26, 40, 0.96)' }}
+        data-testid="pause-victory-dialog"
+        className="w-full max-w-md rounded border border-[#26e8d4]/30 p-3 shadow-[0_18px_48px_rgba(0,0,0,0.75)] overflow-hidden"
+        style={{ backgroundColor: 'rgba(5, 24, 37, 0.96)' }}
       >
-        <div className="text-xs uppercase tracking-[0.2em] text-[#26e8d4]">
-          {isVictory
-            ? hud.completionLabel ?? 'Глава завершена'
-            : isDefeat
-              ? 'Кислород иссяк'
-              : 'Погружение на паузе'}
+        <div className="min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-[#26e8d4] truncate">
+            {eyebrow}
+          </div>
+          <h2 className="text-base sm:text-lg font-bold text-[#f0fffd] truncate leading-tight">
+            {heading}
+          </h2>
         </div>
 
-        <h2 className="mt-1.5 text-2xl font-bold text-[#f0fffd]">
-          {isVictory
-            ? '«...мама?..»'
-            : isDefeat
-              ? 'Тихий риф не отпускает'
-              : 'Тихий риф'}
-        </h2>
-
-        <p className="mt-2 text-sm text-[#a8d5e0] leading-relaxed">
-          {isVictory
-            ? 'Вы проскользнули сквозь окна сети траулера и вышли к краю расщелины. Прогресс сохранён — открыта Глава 2: «Поющий кит».'
-            : isDefeat
-              ? 'Кальмар-ракета загнал вас в угол, но весь собранный жемчуг остался при вас. Возвращаемся ко входу в текущую зону.'
-              : 'Вы всегда можете перевести дыхание или вернуться к началу рифа.'}
+        <p className="mt-1 text-xs text-[#a8d5e0] leading-snug line-clamp-2">
+          {desc}
         </p>
 
-        {/* Mastery / Progress Metrics */}
-        <div className="mt-5 grid grid-cols-3 gap-2.5">
+        {/* Compact Mastery / Progress Metrics */}
+        <div
+          className={`mt-2 grid gap-1.5 ${
+            isVictory && hud.lastChapterRank ? 'grid-cols-4' : 'grid-cols-3'
+          }`}
+        >
           <div
-            className="p-3 rounded border border-[#1d4c63]"
+            className="px-2 py-1.5 rounded border border-[#183d52]/80 flex items-baseline justify-between gap-1"
             style={{ backgroundColor: 'rgba(4, 18, 29, 0.85)' }}
           >
-            <div className="text-[10px] uppercase tracking-wider text-[#73a8b8]">
-              Время
-            </div>
-            <div className="mt-0.5 text-lg font-bold tabular-nums text-[#ebfffe]">
-              {hud.elapsedSec}с
-            </div>
+            <span className="text-[10px] uppercase tracking-wide text-[#73a8b8] truncate">
+              {dict.statTime}
+            </span>
+            <span className="text-sm font-bold tabular-nums text-[#ebfffe] shrink-0">
+              {hud.elapsedSec}
+              {dict.hudSecUnit}
+            </span>
           </div>
           <div
-            className="p-3 rounded border border-[#1d4c63]"
+            className="px-2 py-1.5 rounded border border-[#183d52]/80 flex items-baseline justify-between gap-1"
             style={{ backgroundColor: 'rgba(4, 18, 29, 0.85)' }}
           >
-            <div className="text-[10px] uppercase tracking-wider text-[#c9b78a]">
-              Жемчуг
-            </div>
-            <div className="mt-0.5 text-lg font-bold tabular-nums text-[#fff5d9]">
+            <span className="text-[10px] uppercase tracking-wide text-[#c9b78a] truncate">
+              {dict.hudPearls}
+            </span>
+            <span className="text-sm font-bold tabular-nums text-[#fff5d9] shrink-0">
               {hud.pearls}
-            </div>
+            </span>
           </div>
           <div
-            className="p-3 rounded border border-[#1d4c63]"
+            className="px-2 py-1.5 rounded border border-[#183d52]/80 flex items-baseline justify-between gap-1"
             style={{ backgroundColor: 'rgba(4, 18, 29, 0.85)' }}
           >
-            <div className="text-[10px] uppercase tracking-wider text-[#73a8b8]">
-              {isVictory ? 'Знакомства' : 'Смертей'}
-            </div>
-            <div className="mt-0.5 text-lg font-bold tabular-nums text-[#ebfffe]">
-              {isVictory ? `${hud.npcsMetCount}/2` : hud.totalDeaths}
-            </div>
+            <span className="text-[10px] uppercase tracking-wide text-[#73a8b8] truncate">
+              {isVictory ? dict.statMet : dict.statDeaths}
+            </span>
+            <span className="text-sm font-bold tabular-nums text-[#ebfffe] shrink-0">
+              {isVictory ? `${hud.npcsMetCount}/${hud.npcsTotal}` : hud.totalDeaths}
+            </span>
           </div>
+          {isVictory && hud.lastChapterRank && (
+            <div
+              data-testid="victory-rank-card"
+              className={`px-2 py-1.5 rounded border flex items-baseline justify-between gap-1 ${
+                hud.lastChapterRank === 'S'
+                  ? 'border-[#f5cf6e]/50'
+                  : hud.lastChapterRank === 'A'
+                    ? 'border-[#26e8d4]/40'
+                    : 'border-[#183d52]/80'
+              }`}
+              style={{ backgroundColor: 'rgba(4, 18, 29, 0.9)' }}
+            >
+              <span className="text-[10px] uppercase tracking-wide text-[#73a8b8] truncate">
+                {dict.statRank}
+              </span>
+              <span
+                className={`text-sm font-bold tabular-nums shrink-0 ${
+                  hud.lastChapterRank === 'S'
+                    ? 'text-[#f5cf6e]'
+                    : hud.lastChapterRank === 'A'
+                      ? 'text-[#5ef7e6]'
+                      : 'text-[#ebfffe]'
+                }`}
+              >
+                {hud.lastChapterRank}
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Actions */}
-        <div className="mt-6 flex flex-col gap-2.5">
+        {isVictory && hud.awardedSRankBonus && (
+          <div
+            data-testid="victory-s-rank-bonus"
+            className="mt-1.5 px-2.5 py-1 rounded border border-[#f5cf6e]/40 text-[11px] font-semibold text-[#ffe8ad] text-center"
+            style={{ backgroundColor: 'rgba(38, 29, 10, 0.88)' }}
+          >
+            {dict.rankSBonus}
+          </div>
+        )}
+
+        {/* Primary CTA + Compact Multi-Column Secondary Grid */}
+        <div className="mt-2.5 space-y-1.5">
           {hud.screenState === 'paused' && (
             <button
               type="button"
+              onMouseEnter={() => onHoverSound?.()}
               onClick={(e) => {
                 e.currentTarget.blur();
+                onClickSound?.();
                 onResume();
               }}
-              className="w-full py-2.5 rounded-md font-semibold text-sm text-[#031d29] bg-[#26e8d4] hover:bg-[#5ef7e6] cursor-pointer"
+              className="w-full py-2 rounded font-semibold text-xs sm:text-sm text-[#031d29] bg-[#26e8d4] hover:bg-[#5ef7e6] cursor-pointer"
             >
-              Продолжить
+              {dict.btnResume}
+            </button>
+          )}
+
+          {hasNextChapter && (
+            <button
+              type="button"
+              data-start="true"
+              data-testid="next-chapter-btn"
+              onMouseEnter={() => onHoverSound?.()}
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onClickSound?.();
+                onNextChapter();
+              }}
+              className="w-full py-2 rounded font-semibold text-xs sm:text-sm text-[#031d29] bg-[#26e8d4] hover:bg-[#5ef7e6] cursor-pointer"
+            >
+              {dict[`btnNextChapter${hud.chapter + 1}` as keyof typeof dict] ?? dict.btnNextChapter2}
             </button>
           )}
 
@@ -114,45 +204,131 @@ export const PauseVictoryModal: React.FC<PauseVictoryModalProps> = ({
             <button
               type="button"
               data-start="true"
+              onMouseEnter={() => onHoverSound?.()}
               onClick={(e) => {
                 e.currentTarget.blur();
+                onClickSound?.();
                 onRespawn();
               }}
-              className="w-full py-2.5 rounded-md font-semibold text-sm text-[#031d29] bg-[#26e8d4] hover:bg-[#5ef7e6] cursor-pointer"
+              className="w-full py-2 rounded font-semibold text-xs sm:text-sm text-[#031d29] bg-[#26e8d4] hover:bg-[#5ef7e6] cursor-pointer"
             >
-              К чек-поинту зоны
+              {dict.btnRespawn}
             </button>
           )}
 
-          <button
-            type="button"
-            data-start={isVictory ? 'true' : undefined}
-            onClick={(e) => {
-              e.currentTarget.blur();
-              onRestart();
-            }}
-            className={`w-full py-2.5 rounded-md font-semibold text-sm cursor-pointer ${
-              isVictory
-                ? 'text-[#031d29] bg-[#26e8d4] hover:bg-[#5ef7e6]'
-                : 'text-[#d4f7f4] border border-[#26e8d4]/35 hover:border-[#26e8d4]'
-            }`}
-            style={
-              isVictory ? undefined : { backgroundColor: 'rgba(8, 36, 54, 0.9)' }
-            }
-          >
-            {isVictory ? 'Пройти главу заново' : 'Начать главу сначала'}
-          </button>
+          {isVictory && !hasNextChapter && (
+            <button
+              type="button"
+              data-start="true"
+              onMouseEnter={() => onHoverSound?.()}
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onClickSound?.();
+                onRestart();
+              }}
+              className="w-full py-2 rounded font-semibold text-xs sm:text-sm text-[#031d29] bg-[#26e8d4] hover:bg-[#5ef7e6] cursor-pointer"
+            >
+              {dict.btnPlayAgain}
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={(e) => {
-              e.currentTarget.blur();
-              onTitle();
-            }}
-            className="w-full py-2 rounded-md text-xs font-medium text-[#8dbec9] hover:text-[#ebfffe] cursor-pointer"
-          >
-            В главное меню
-          </button>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+            {(hud.screenState === 'paused' || isVictory) && (
+              <>
+                <button
+                  type="button"
+                  data-testid={hud.screenState === 'paused' ? 'open-shop-pause-btn' : 'open-shop-victory-btn'}
+                  onMouseEnter={() => onHoverSound?.()}
+                  onClick={(e) => {
+                    e.currentTarget.blur();
+                    onClickSound?.();
+                    onOpenShop();
+                  }}
+                  className="py-1.5 px-2 rounded font-semibold text-[11px] sm:text-xs text-[#fff5d9] border border-[#c9b78a]/30 hover:border-[#f5df9f] cursor-pointer truncate"
+                  style={{ backgroundColor: 'rgba(18, 28, 36, 0.9)' }}
+                >
+                  {t(lang, 'btnPearlShop', { pearls: hud.pearls })}
+                </button>
+                <button
+                  type="button"
+                  data-testid={hud.screenState === 'paused' ? 'open-journal-pause-btn' : 'open-journal-victory-btn'}
+                  onMouseEnter={() => onHoverSound?.()}
+                  onClick={(e) => {
+                    e.currentTarget.blur();
+                    onClickSound?.();
+                    onOpenJournal();
+                  }}
+                  className="py-1.5 px-2 rounded font-semibold text-[11px] sm:text-xs text-[#d4f7f4] border border-[#183d52]/80 hover:border-[#26e8d4] cursor-pointer truncate"
+                  style={{ backgroundColor: 'rgba(8, 36, 54, 0.9)' }}
+                >
+                  {dict.btnJournal}
+                </button>
+              </>
+            )}
+
+            {hud.screenState === 'paused' && (
+              <button
+                type="button"
+                data-testid="open-controls-pause-btn"
+                onMouseEnter={() => onHoverSound?.()}
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  onClickSound?.();
+                  onOpenControls();
+                }}
+                className="py-1.5 px-2 rounded font-semibold text-[11px] sm:text-xs text-[#d4f7f4] border border-[#183d52]/80 hover:border-[#26e8d4] cursor-pointer truncate"
+                style={{ backgroundColor: 'rgba(8, 36, 54, 0.9)' }}
+              >
+                {dict.btnSettings}
+              </button>
+            )}
+
+            <button
+              type="button"
+              data-testid="pause-fullscreen-btn"
+              onMouseEnter={() => onHoverSound?.()}
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onClickSound?.();
+                onToggleFullscreen();
+              }}
+              className="py-1.5 px-2 rounded font-semibold text-[11px] sm:text-xs text-[#d4f7f4] border border-[#183d52]/80 hover:border-[#26e8d4] cursor-pointer truncate"
+              style={{ backgroundColor: 'rgba(8, 36, 54, 0.9)' }}
+            >
+              {isFullscreen ? dict.btnExitFullscreen : dict.btnFullscreen}
+            </button>
+
+            {(!isVictory || hasNextChapter) && (
+              <button
+                type="button"
+                onMouseEnter={() => onHoverSound?.()}
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  onClickSound?.();
+                  onRestart();
+                }}
+                className="py-1.5 px-2 rounded font-semibold text-[11px] sm:text-xs text-[#d4f7f4] border border-[#183d52]/80 hover:border-[#26e8d4] cursor-pointer truncate"
+                style={{ backgroundColor: 'rgba(8, 36, 54, 0.9)' }}
+              >
+                {isVictory ? dict.btnPlayAgain : dict.btnRestartChapter}
+              </button>
+            )}
+
+            <button
+              type="button"
+              data-testid="pause-menu-btn"
+              onMouseEnter={() => onHoverSound?.()}
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onClickSound?.();
+                onTitle();
+              }}
+              className="py-1.5 px-2 rounded font-semibold text-[11px] sm:text-xs text-[#9ecad4] border border-[#183d52]/70 hover:border-[#26e8d4]/55 hover:text-[#ebfffe] cursor-pointer truncate"
+              style={{ backgroundColor: 'rgba(4, 18, 29, 0.85)' }}
+            >
+              {dict.btnReturnMenu}
+            </button>
+          </div>
         </div>
       </div>
     </div>

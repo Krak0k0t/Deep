@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   CAMPAIGN_NPC_BLUEPRINTS,
   createChapter1NPCs,
+  createChapter3NPCs,
+  createChapter4NPCs,
   triggerShrimpPanic,
   updateNPCProximity,
 } from './npc';
@@ -51,4 +53,23 @@ test('panic shrimps distract predator 4 times and hide for 60s on 5th panic', ()
   // While hidden, cannot panic again
   const whileHidden = triggerShrimpPanic(fifth.npc, 20);
   assert.equal(whileHidden.distractedPredator, false);
+});
+
+test('Chapter 3 spawns Hermit Crabs and Loggerhead Turtle Glafira', () => {
+  const npcs = createChapter3NPCs();
+  assert.equal(npcs.length, 2);
+  assert.equal(npcs[0].id, 'hermit_crabs');
+  assert.equal(npcs[1].id, 'glafira');
+  assert.equal(npcs[0].chapter, 3);
+  assert.equal(npcs[1].behavior, 'patrol');
+});
+
+test('Chapter 4 spawns Critic Crabs and Loggerhead Turtle Glafira', () => {
+  const npcs = createChapter4NPCs();
+  assert.equal(npcs.length, 2);
+  assert.equal(npcs[0].id, 'critic_crabs');
+  assert.equal(npcs[1].id, 'glafira');
+  assert.equal(npcs[0].chapter, 4);
+  assert.equal(npcs[0].reward, 'pearl_style');
+  assert.equal(npcs[1].behavior, 'patrol');
 });

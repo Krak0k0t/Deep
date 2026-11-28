@@ -1,6 +1,7 @@
 import {
   CampaignState,
   ChapterId,
+  ChapterRank,
   CHAPTERS,
   createCampaignState,
   GlowSkinId,
@@ -21,6 +22,9 @@ export interface SaveData {
   currentChapter: ChapterId;
   pearls: number;
   collectedPearlIds: string[];
+  collectedRelicIds: string[];
+  bestRankByChapter: Partial<Record<ChapterId, ChapterRank>>;
+  npcsMet: string[];
   activeSkin: GlowSkinId;
   unlockedSkins: GlowSkinId[];
   upgrades: string[];
@@ -44,6 +48,25 @@ function clampChapter(ch: unknown): ChapterId {
   return 1;
 }
 
+function sanitizeBestRanks(
+  raw: unknown,
+): Partial<Record<ChapterId, ChapterRank>> {
+  const result: Partial<Record<ChapterId, ChapterRank>> = {};
+  if (!raw || typeof raw !== 'object') return result;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const ch = Number(k);
+    if (
+      Number.isInteger(ch) &&
+      ch >= 1 &&
+      ch <= 10 &&
+      (v === 'S' || v === 'A' || v === 'B')
+    ) {
+      result[ch as ChapterId] = v;
+    }
+  }
+  return result;
+}
+
 export function loadSaveData(
   storage: StorageLike | null = getDefaultStorage(),
 ): SaveData | null {
@@ -61,6 +84,13 @@ export function loadSaveData(
       pearls: Math.max(0, Math.floor(Number(parsed.pearls) || 0)),
       collectedPearlIds: Array.isArray(parsed.collectedPearlIds)
         ? parsed.collectedPearlIds.filter((x): x is string => typeof x === 'string')
+        : [],
+      collectedRelicIds: Array.isArray(parsed.collectedRelicIds)
+        ? parsed.collectedRelicIds.filter((x): x is string => typeof x === 'string')
+        : [],
+      bestRankByChapter: sanitizeBestRanks(parsed.bestRankByChapter),
+      npcsMet: Array.isArray(parsed.npcsMet)
+        ? parsed.npcsMet.filter((x): x is string => typeof x === 'string')
         : [],
       activeSkin:
         parsed.activeSkin === 'pearl' || parsed.activeSkin === 'charcoal'
@@ -80,6 +110,12 @@ export function loadSaveData(
         borisMug: Boolean(parsed.quests?.borisMug),
         crabDebris: Boolean(parsed.quests?.crabDebris),
         whaleContainer: Boolean(parsed.quests?.whaleContainer),
+        queenEscort: Boolean(parsed.quests?.queenEscort),
+        eggReclaimed: Boolean(parsed.quests?.eggReclaimed),
+        whaleRescued: Boolean(parsed.quests?.whaleRescued),
+        borisShortcut: Boolean(parsed.quests?.borisShortcut),
+        keshaAlert: Boolean(parsed.quests?.keshaAlert),
+        hatchlingBorn: Boolean(parsed.quests?.hatchlingBorn),
       },
       savedAtIso:
         typeof parsed.savedAtIso === 'string'
@@ -103,12 +139,35 @@ export function saveCampaignProgress(
     state.chapter,
   ) as ChapterId;
 
+  const mergedNpcsMet = Array.from(
+    new Set([...(existing?.npcsMet ?? []), ...state.npcsMet]),
+  );
+  const mergedRelics = Array.from(
+    new Set([...(existing?.collectedRelicIds ?? []), ...state.collectedRelicIds]),
+  );
+
+  const rankOrder: Record<ChapterRank, number> = { B: 1, A: 2, S: 3 };
+  const mergedRanks: Partial<Record<ChapterId, ChapterRank>> = {
+    ...(existing?.bestRankByChapter ?? {}),
+  };
+  for (const [k, v] of Object.entries(state.bestRankByChapter)) {
+    const ch = Number(k) as ChapterId;
+    const rank = v as ChapterRank;
+    const prev = mergedRanks[ch];
+    if (!prev || rankOrder[rank] > rankOrder[prev]) {
+      mergedRanks[ch] = rank;
+    }
+  }
+
   const payload: SaveData = {
     version: 1,
     highestChapter,
     currentChapter: state.chapter,
     pearls: state.pearls,
     collectedPearlIds: [...state.collectedPearlIds],
+    collectedRelicIds: mergedRelics,
+    bestRankByChapter: mergedRanks,
+    npcsMet: mergedNpcsMet,
     activeSkin: state.activeSkin,
     unlockedSkins: state.unlockedSkins.includes('turquoise')
       ? [...state.unlockedSkins]
@@ -151,6 +210,9 @@ export function createCampaignFromSave(
     ...base,
     pearls: save.pearls,
     collectedPearlIds: [...save.collectedPearlIds],
+    collectedRelicIds: [...save.collectedRelicIds],
+    bestRankByChapter: { ...save.bestRankByChapter },
+    npcsMet: [...save.npcsMet],
     activeSkin: save.activeSkin,
     unlockedSkins: [...save.unlockedSkins],
     upgrades: [...save.upgrades],

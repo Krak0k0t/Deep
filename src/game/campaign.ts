@@ -105,7 +105,7 @@ export const CHAPTERS: Record<ChapterId, ChapterConfig> = {
     ambientColor: '#113c54',
     spotColor: '#3f96b8',
     rooms: ['ch2_liner_hull', 'ch2_galley', 'ch2_pelican_gate'],
-    implemented: false,
+    implemented: true,
   },
   3: {
     id: 3,
@@ -118,7 +118,7 @@ export const CHAPTERS: Record<ChapterId, ChapterConfig> = {
     ambientColor: '#0f3d36',
     spotColor: '#2c8276',
     rooms: ['ch3_kelp_edge', 'ch3_whisper_corridor', 'ch3_crab_outpost'],
-    implemented: false,
+    implemented: true,
   },
   4: {
     id: 4,
@@ -131,7 +131,7 @@ export const CHAPTERS: Record<ChapterId, ChapterConfig> = {
     ambientColor: '#15293d',
     spotColor: '#3b5878',
     rooms: ['ch4_ribcage_hall', 'ch4_sperm_whale', 'ch4_charybdis_gate'],
-    implemented: false,
+    implemented: true,
   },
   5: {
     id: 5,
@@ -144,7 +144,7 @@ export const CHAPTERS: Record<ChapterId, ChapterConfig> = {
     ambientColor: '#26171a',
     spotColor: '#4e2f37',
     rooms: ['ch5_thermal_vents', 'ch5_queen_nest'],
-    implemented: false,
+    implemented: true,
   },
   6: {
     id: 6,
@@ -157,7 +157,7 @@ export const CHAPTERS: Record<ChapterId, ChapterConfig> = {
     ambientColor: '#0a2433',
     spotColor: '#26e8d4',
     rooms: ['ch6_abyss_heart'],
-    implemented: false,
+    implemented: true,
   },
   7: {
     id: 7,
@@ -170,7 +170,7 @@ export const CHAPTERS: Record<ChapterId, ChapterConfig> = {
     ambientColor: '#1a2d42',
     spotColor: '#3b6285',
     rooms: ['ch7_thermal_updraft', 'ch7_whale_rescue'],
-    implemented: false,
+    implemented: true,
   },
   8: {
     id: 8,
@@ -183,7 +183,7 @@ export const CHAPTERS: Record<ChapterId, ChapterConfig> = {
     ambientColor: '#12423a',
     spotColor: '#369487',
     rooms: ['ch8_dark_clearings', 'ch8_boris_shortcut'],
-    implemented: false,
+    implemented: true,
   },
   9: {
     id: 9,
@@ -196,7 +196,7 @@ export const CHAPTERS: Record<ChapterId, ChapterConfig> = {
     ambientColor: '#184461',
     spotColor: '#48a4cc',
     rooms: ['ch9_cabins', 'ch9_kesha_atrium'],
-    implemented: false,
+    implemented: true,
   },
   10: {
     id: 10,
@@ -209,14 +209,22 @@ export const CHAPTERS: Record<ChapterId, ChapterConfig> = {
     ambientColor: '#246d91',
     spotColor: '#7be0ff',
     rooms: ['ch10_surface_sprint', 'ch10_hatchling_coral'],
-    implemented: false,
+    implemented: true,
   },
 };
+
+export type ChapterRank = 'S' | 'A' | 'B';
 
 export interface QuestStatus {
   borisMug: boolean;
   crabDebris: boolean;
   whaleContainer: boolean;
+  queenEscort?: boolean;
+  eggReclaimed?: boolean;
+  whaleRescued?: boolean;
+  borisShortcut?: boolean;
+  keshaAlert?: boolean;
+  hatchlingBorn?: boolean;
 }
 
 export interface CampaignState {
@@ -226,6 +234,10 @@ export interface CampaignState {
   checkpointRoomId: string;
   pearls: number;
   collectedPearlIds: string[];
+  collectedRelicIds: string[];
+  bestRankByChapter: Partial<Record<ChapterId, ChapterRank>>;
+  chapterHitsTaken: number;
+  chapterTimesSpotted: number;
   activeSkin: GlowSkinId;
   unlockedSkins: GlowSkinId[];
   upgrades: string[];
@@ -250,6 +262,10 @@ export function createCampaignState(chapter: ChapterId = 1): CampaignState {
     checkpointRoomId: initialRoom,
     pearls: 0,
     collectedPearlIds: [],
+    collectedRelicIds: [],
+    bestRankByChapter: {},
+    chapterHitsTaken: 0,
+    chapterTimesSpotted: 0,
     activeSkin: 'turquoise',
     unlockedSkins: ['turquoise'],
     upgrades: [],
@@ -258,6 +274,12 @@ export function createCampaignState(chapter: ChapterId = 1): CampaignState {
       borisMug: false,
       crabDebris: false,
       whaleContainer: false,
+      queenEscort: false,
+      eggReclaimed: chapter >= 7,
+      whaleRescued: false,
+      borisShortcut: false,
+      keshaAlert: false,
+      hatchlingBorn: false,
     },
     deathsByRoom: {},
     consecutiveDeathsInRoom: {},
@@ -347,6 +369,72 @@ export function collectPearl(state: CampaignState, pearlId: string): CampaignSta
   };
 }
 
+export function collectLoreRelic(state: CampaignState, relicId: string): {
+  state: CampaignState;
+  isNew: boolean;
+} {
+  if (state.collectedRelicIds.includes(relicId)) {
+    return { state, isNew: false };
+  }
+  return {
+    state: {
+      ...state,
+      pearls: state.pearls + 2,
+      collectedRelicIds: [...state.collectedRelicIds, relicId],
+    },
+    isNew: true,
+  };
+}
+
+export function recordChapterHit(state: CampaignState): CampaignState {
+  return {
+    ...state,
+    chapterHitsTaken: state.chapterHitsTaken + 1,
+  };
+}
+
+export function recordPredatorSpot(state: CampaignState): CampaignState {
+  return {
+    ...state,
+    chapterTimesSpotted: state.chapterTimesSpotted + 1,
+  };
+}
+
+export function calculateChapterRank(
+  hitsTaken: number,
+  spotsCount: number,
+): ChapterRank {
+  if (hitsTaken === 0 && spotsCount <= 1) return 'S';
+  if (hitsTaken <= 1 && spotsCount <= 3) return 'A';
+  return 'B';
+}
+
+const RANK_ORDER: Record<ChapterRank, number> = { B: 1, A: 2, S: 3 };
+
+export function completeChapterMastery(
+  state: CampaignState,
+  chapter: ChapterId = state.chapter,
+): { state: CampaignState; rank: ChapterRank; awardedSRankBonus: boolean } {
+  const rank = calculateChapterRank(state.chapterHitsTaken ?? 0, state.chapterTimesSpotted ?? 0);
+  const prevBest = state.bestRankByChapter?.[chapter];
+  const nextBest =
+    !prevBest || RANK_ORDER[rank] > RANK_ORDER[prevBest] ? rank : prevBest;
+  const awardedSRankBonus = rank === 'S' && prevBest !== 'S';
+
+  return {
+    state: {
+      ...state,
+      pearls: awardedSRankBonus ? state.pearls + 2 : state.pearls,
+      bestRankByChapter: {
+        ...(state.bestRankByChapter ?? {}),
+        [chapter]: nextBest,
+      },
+    },
+    rank,
+    awardedSRankBonus,
+  };
+}
+
 export function purchaseGlowSkin(
   state: CampaignState,
   skinId: GlowSkinId,
@@ -369,6 +457,136 @@ export function purchaseGlowSkin(
   };
 }
 
+export function purchaseHideoutUpgrade(
+  state: CampaignState,
+  upgradeId: 'coral_veil' | 'silent_fins',
+): { state: CampaignState; ok: boolean } {
+  if (state.upgrades.includes(upgradeId)) {
+    return { state, ok: true };
+  }
+  const upgrade = HIDEOUT_UPGRADES.find((u) => u.id === upgradeId);
+  if (!upgrade || state.pearls < upgrade.cost) {
+    return { state, ok: false };
+  }
+  return {
+    state: {
+      ...state,
+      pearls: state.pearls - upgrade.cost,
+      upgrades: [...state.upgrades, upgradeId],
+    },
+    ok: true,
+  };
+}
+
+export function completeBorisMugQuest(state: CampaignState): CampaignState {
+  const npcsMet = state.npcsMet.includes('boris')
+    ? state.npcsMet
+    : [...state.npcsMet, 'boris'];
+  return {
+    ...state,
+    hasDashMutation: true,
+    quests: {
+      ...state.quests,
+      borisMug: true,
+    },
+    npcsMet,
+  };
+}
+
+export function completeCrabDebrisQuest(state: CampaignState): CampaignState {
+  const npcsMet = state.npcsMet.includes('hermit_crabs')
+    ? state.npcsMet
+    : [...state.npcsMet, 'hermit_crabs'];
+  return {
+    ...state,
+    quests: {
+      ...state.quests,
+      crabDebris: true,
+    },
+    npcsMet,
+  };
+}
+
+export function completeWhaleContainerQuest(state: CampaignState): CampaignState {
+  const npcsMet = state.npcsMet.includes('critic_crabs')
+    ? state.npcsMet
+    : [...state.npcsMet, 'critic_crabs'];
+  return {
+    ...state,
+    quests: {
+      ...state.quests,
+      whaleContainer: true,
+    },
+    npcsMet,
+  };
+}
+
+export function completeQueenEscortQuest(state: CampaignState): CampaignState {
+  const npcsMet = state.npcsMet.includes('queen_angler')
+    ? state.npcsMet
+    : [...state.npcsMet, 'queen_angler'];
+  return {
+    ...state,
+    quests: {
+      ...state.quests,
+      queenEscort: true,
+    },
+    npcsMet,
+  };
+}
+
+export function completeWhaleRescueQuest(state: CampaignState): CampaignState {
+  const npcsMet = state.npcsMet.includes('young_whale')
+    ? state.npcsMet
+    : [...state.npcsMet, 'young_whale'];
+  return {
+    ...state,
+    quests: {
+      ...state.quests,
+      whaleRescued: true,
+    },
+    npcsMet,
+  };
+}
+
+export function completeBorisShortcutQuest(state: CampaignState): CampaignState {
+  const npcsMet = state.npcsMet.includes('boris')
+    ? state.npcsMet
+    : [...state.npcsMet, 'boris'];
+  return {
+    ...state,
+    quests: {
+      ...state.quests,
+      borisShortcut: true,
+    },
+    npcsMet,
+  };
+}
+
+export function completeKeshaAlertQuest(state: CampaignState): CampaignState {
+  const npcsMet = state.npcsMet.includes('kesha')
+    ? state.npcsMet
+    : [...state.npcsMet, 'kesha'];
+  return {
+    ...state,
+    quests: {
+      ...state.quests,
+      keshaAlert: true,
+    },
+    npcsMet,
+  };
+}
+
+export function completeHatchlingQuest(state: CampaignState): CampaignState {
+  return {
+    ...state,
+    quests: {
+      ...state.quests,
+      hatchlingBorn: true,
+    },
+  };
+}
+
 export function registerStyleDodge(
   state: CampaignState,
 ): { state: CampaignState; awardedPearl: boolean } {
@@ -388,9 +606,13 @@ export function registerStyleDodge(
 export function triggerEggPickupAscent(state: CampaignState): CampaignState {
   return {
     ...state,
-    chapter: 6,
+    chapter: Math.max(state.chapter, 6) as ChapterId,
     phase: 'ASCENT',
     lastCallTimeSec: -999,
+    quests: {
+      ...state.quests,
+      eggReclaimed: true,
+    },
   };
 }
 
@@ -404,6 +626,7 @@ export interface BalanceTelemetry {
   questsCompleted: string[];
   npcsMet: string[];
   totalStyleDodges: number;
+  relicsCollected: number;
 }
 
 export function buildBalanceTelemetry(
@@ -414,6 +637,12 @@ export function buildBalanceTelemetry(
   if (state.quests.borisMug) questsCompleted.push('borisMug');
   if (state.quests.crabDebris) questsCompleted.push('crabDebris');
   if (state.quests.whaleContainer) questsCompleted.push('whaleContainer');
+  if (state.quests.queenEscort) questsCompleted.push('queenEscort');
+  if (state.quests.eggReclaimed) questsCompleted.push('eggReclaimed');
+  if (state.quests.whaleRescued) questsCompleted.push('whaleRescued');
+  if (state.quests.borisShortcut) questsCompleted.push('borisShortcut');
+  if (state.quests.keshaAlert) questsCompleted.push('keshaAlert');
+  if (state.quests.hatchlingBorn) questsCompleted.push('hatchlingBorn');
 
   const totalDeaths = Object.values(state.deathsByRoom).reduce((a, b) => a + b, 0);
 
@@ -427,5 +656,6 @@ export function buildBalanceTelemetry(
     questsCompleted,
     npcsMet: [...state.npcsMet],
     totalStyleDodges: state.totalStyleDodges,
+    relicsCollected: state.collectedRelicIds.length,
   };
 }
